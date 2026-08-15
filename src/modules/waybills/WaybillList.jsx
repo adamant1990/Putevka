@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { getMyWaybills } from './waybillService';
-
-const fmt = n => Number(n || 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+import WaybillCard from './WaybillCard';
+import WaybillView from './WaybillView';
 
 export default function WaybillList({ driverId, onBack }) {
   const [waybills, setWaybills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selected, setSelected] = useState(null);
 
   useEffect(() => {
     let mounted = true;
@@ -23,6 +24,8 @@ export default function WaybillList({ driverId, onBack }) {
     return () => { mounted = false; };
   }, [driverId]);
 
+  if (selected) return <WaybillView waybill={selected} onBack={() => setSelected(null)} />;
+
   return (
     <main className="app">
       <header>
@@ -33,15 +36,8 @@ export default function WaybillList({ driverId, onBack }) {
         {loading && <p className="muted">Загрузка...</p>}
         {error && <div className="error">{error}</div>}
         {!loading && !error && !waybills.length && <p className="muted">Путёвок пока нет.</p>}
-        {!loading && waybills.map(w => (
-          <div className="item" key={w.id}>
-            <div>
-              <b>{new Date(w.completed_at || w.created_at).toLocaleString('ru-RU')}</b>
-              <span>Пробег: {fmt(w.total_km)} км · Расход: {fmt(w.fuel_used)} л</span>
-              <span>Одометр: {fmt(w.start_odometer)} → {fmt(w.end_odometer)} км</span>
-            </div>
-            <strong>{fmt(w.end_fuel)} л</strong>
-          </div>
+        {!loading && !error && waybills.map(w => (
+          <WaybillCard key={w.id} waybill={w} onClick={() => setSelected(w)} />
         ))}
       </section>
     </main>
