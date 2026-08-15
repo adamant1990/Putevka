@@ -84,7 +84,7 @@ function App() {
     {showTrip && <div className="modal"><div className="modal-card"><div className="row"><h2>Новая поездка</h2><button className="icon" onClick={() => setShowTrip(false)}>×</button></div>
       <label>Город, км</label><NumericInput autoFocus placeholder="25 31" value={city} onChange={e => setCity(e.target.value)} onEnter={addTrip}/>
       <label>Трасса, км</label><NumericInput placeholder="120 80" value={highway} onChange={e => setHighway(e.target.value)} onEnter={addTrip}/>
-      <div className="preview">Город: <b>{fmt(cityKm)} км</b><br/>Трасса: <b>{fmt(highwayKm)} км</b><br/>Всего: <b>{fmt(cityKm + highwayKm)} км</b><br/>Расход: <b>{fmt(draftFuel)} л</b><br/>Остаток после поездки: <b>{fmt(remaining - draftFuel)} л</b></div>
+      <div className="preview">Всего: <b>{fmt(cityKm + highwayKm)} км</b><br/>Расход: <b>{fmt(draftFuel)} л</b></div>
       <button className="primary" onClick={addTrip}>Добавить поездку</button>
     </div></div>}
 
