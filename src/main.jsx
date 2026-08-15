@@ -21,7 +21,6 @@ function App() {
   const [carId, setCarId] = useState(1);
   const [odometer, setOdometer] = useState('');
   const [startFuel, setStartFuel] = useState('');
-  const [endOdometer, setEndOdometer] = useState('');
   const [trips, setTrips] = useState([]);
   const [refuels, setRefuels] = useState([]);
   const [city, setCity] = useState('');
@@ -38,8 +37,7 @@ function App() {
   const usedFuel = trips.reduce((a, x) => a + x.fuel, 0);
   const addedFuel = refuels.reduce((a, x) => a + x, 0);
   const tripKm = trips.reduce((a, x) => a + x.city + x.highway, 0);
-  const actualKm = Math.max(0, num(endOdometer) - num(odometer));
-  const mileageDifference = actualKm - tripKm;
+  const currentOdometer = num(odometer) + tripKm;
   const remaining = Math.max(0, num(startFuel) + addedFuel - usedFuel);
 
   const addTrip = () => {
@@ -77,7 +75,7 @@ function App() {
       {!trips.length ? <p className="muted">Добавьте поездку.</p> : trips.map((t,i)=><div className="item" key={i}><div><b>Поездка {i+1}</b><span>Город {fmt(t.city)} км · Трасса {fmt(t.highway)} км</span></div><strong>−{fmt(t.fuel)} л</strong></div>)}
       {!!trips.length && <div className="totals">По поездкам: {fmt(tripKm)} км · Расход: {fmt(usedFuel)} л</div>}
     </section>
-    <section className="card"><label>Конечный одометр при сдаче</label><NumericInput value={endOdometer} onChange={e => setEndOdometer(e.target.value)} placeholder="126250" onEnter={() => setEndOdometer(endOdometer.trim())}/>{endOdometer && <div className="preview">Фактический пробег: <b>{fmt(actualKm)} км</b><br/>По внесённым поездкам: <b>{fmt(tripKm)} км</b><br/>{mileageDifference === 0 ? <b>✓ Пробег совпадает</b> : <><span>Разница: </span><b>{mileageDifference > 0 ? '+' : ''}{fmt(mileageDifference)} км</b></>}</div>}</section>
+    <section className="card"><label>Расчётный одометр</label><div className="calculated-value">{fmt(currentOdometer)} км</div><p className="muted">Начальный одометр {fmt(num(odometer))} км + пройдено {fmt(tripKm)} км</p></section>
     <button className="secondary" onClick={() => setShowRefuel(true)}>⛽ Заправка АИ-92</button>
     <button className="primary big" onClick={() => setShowFinish(true)}>✓ Сдать путёвку</button>
 
@@ -90,7 +88,7 @@ function App() {
 
     {showRefuel && <div className="modal"><div className="modal-card"><div className="row"><h2>Заправка АИ-92</h2><button className="icon" onClick={() => setShowRefuel(false)}>×</button></div><p>Сейчас в расчёте: <b>{fmt(remaining)} л</b></p><label>Заправлено, л</label><NumericInput autoFocus decimal placeholder="20" value={refuel} onChange={e => setRefuel(e.target.value)} onEnter={addRefuel}/><div className="preview">После заправки: <b>{fmt(remaining + num(refuel))} л</b></div><button className="primary" onClick={addRefuel}>Сохранить заправку</button></div></div>}
 
-    {showFinish && <div className="modal"><div className="modal-card"><div className="row"><h2>Сдача путёвки</h2><button className="icon" onClick={() => setShowFinish(false)}>×</button></div><div className="preview"><b>Итог:</b><br/>Пробег по одометру: <b>{fmt(actualKm)} км</b><br/>Внесённые поездки: <b>{fmt(tripKm)} км</b><br/>Расчётный остаток: <b>{fmt(remaining)} л</b><br/>{mileageDifference === 0 ? <b>✓ Всё сходится</b> : <b>⚠ Разница по пробегу: {mileageDifference > 0 ? '+' : ''}{fmt(mileageDifference)} км</b>}</div><button className="primary" onClick={() => { setShowFinish(false); alert('Путёвка сохранена'); }}>Сохранить путёвку</button></div></div>}
+    {showFinish && <div className="modal"><div className="modal-card"><div className="row"><h2>Сдача путёвки</h2><button className="icon" onClick={() => setShowFinish(false)}>×</button></div><div className="preview"><b>Итог:</b><br/>Начальный одометр: <b>{fmt(num(odometer))} км</b><br/>Пройдено: <b>{fmt(tripKm)} км</b><br/>Расчётный одометр: <b>{fmt(currentOdometer)} км</b><br/>Расчётный остаток: <b>{fmt(remaining)} л</b></div><button className="primary" onClick={() => { setShowFinish(false); alert('Путёвка сохранена'); }}>Сохранить путёвку</button></div></div>}
   </main>;
 }
 
