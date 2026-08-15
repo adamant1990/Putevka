@@ -13,27 +13,67 @@ export async function saveWaybill({
   trips = [],
   refuels = [],
 }) {
-  const { data, error } = await supabase.rpc('create_waybill_and_charge', {
-    p_vehicle_type_id: vehicleTypeId,
-    p_start_odometer: Number(startOdometer),
-    p_end_odometer: Number(endOdometer),
-    p_start_fuel: Number(startFuel),
-    p_fuel_used: Number(fuelUsed),
-    p_fuel_added: Number(fuelAdded),
-    p_end_fuel: Number(endFuel),
-    p_total_km: Number(totalKm),
-    p_trips: trips.map(trip => ({
-      city: Number(trip.city) || 0,
-      highway: Number(trip.highway) || 0,
-      fuel: Number(trip.fuel) || 0,
-    })),
-    p_refuels: refuels.map(litres => Number(litres) || 0),
-    p_charge: 5,
+  const { data: waybill, error: waybillError } = await supabase
+    .from('waybills')
+    .insert({
+      driver_id: driverId,
+      vehicle_type_id: vehicleTypeId,
+      start_odometer: Number(startOdometer),
+      end_odometer: Number(endOdometer),
+      start_fuel: Number(startFuel),
+      fuel_used: Number(fuelUsed),
+      fuel_added: Number(fuelAdded),
+      end_fuel: Number(endFuel),
+      total_km: Number(totalKm),
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+    })
+    .select()
+    .single();
+
+  if (waybillError) throw waybillError;
+
+  if (trips.length) {
+    const { error } = await supabase
+      .from('waybill_trips')
+      .insert(
+        trips.map(trip => ({
+          waybill_id: waybill.id,
+          city_km: Number(trip.city) || 0,
+          highway_km: Number(trip.highway) || 0,
+          fuel_used: Number(trip.fuel) || 0,
+        }))
+      );
+    if (error) throw error;
+  }
+
+  if (refuels.length) {
+    const { error } = await supabase
+      .from('waybill_refuels')
+      .insert(
+        refuels
+          .map(litres => ({
+            waybill_id: waybill.id,
+            litres: Number(litres) || 0,
+            fuel_type: 'АИ-92',
+          }))
+          .filter(item => item.litres > 0)
+      );
+    if (error) throw error;
+  }
+
+  const { error: chargeError } = await supabase.rpc('charge_waybill', {
+    p_driver_id: driverId,
+    p_waybill_id: waybill.id,
+    p_amount: 5,
   });
 
-  if (error) throw error;
+  if (chargeError) {
+    await supabase.from('waybills').delete().eq('id', waybill.id);
+    throw chargeError;
+  }
 
-  return data?.waybill || data;
+  return waybill;
 }
 
 export async function getMyWaybills(driverId) {
