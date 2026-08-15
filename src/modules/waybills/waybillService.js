@@ -58,3 +58,14 @@ export async function saveWaybill({
 
   return waybill;
 }
+
+export async function getMyWaybills(driverId) {
+  const { data, error } = await supabase
+    .from('waybills')
+    .select('*')
+    .eq('driver_id', driverId)
+    .order('completed_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
