@@ -6,17 +6,17 @@ export default function WaybillCard({ waybill, onClick }) {
   const date = new Date(waybill.completed_at || waybill.created_at).toLocaleString('ru-RU');
   return (
     <button className="card waybill-card" onClick={onClick} type="button">
-      <div className="row">
+      <div className="waybill-card-head">
         <div>
-          <h3>Путёвка</h3>
+          <b>Путёвка</b>
           <span className="muted">{date}</span>
         </div>
-        <strong>{fmt(waybill.end_fuel)} л</strong>
+        <span className="waybill-card-arrow">›</span>
       </div>
-      <div className="waybill-card-grid">
-        <span>Пробег<br/><b>{fmt(waybill.total_km)} км</b></span>
-        <span>Расход<br/><b>{fmt(waybill.fuel_used)} л</b></span>
-        <span>Одометр<br/><b>{fmt(waybill.start_odometer)} → {fmt(waybill.end_odometer)}</b></span>
+      <div className="waybill-card-stats">
+        <span>Пробег <b>{fmt(waybill.total_km)} км</b></span>
+        <span>Расход <b>{fmt(waybill.fuel_used)} л</b></span>
+        <span>Остаток <b>{fmt(waybill.end_fuel)} л</b></span>
       </div>
     </button>
   );
