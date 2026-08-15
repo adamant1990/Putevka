@@ -76,7 +76,12 @@ function App() {
       {!!trips.length && <div className="totals">По поездкам: {fmt(tripKm)} км · Расход: {fmt(usedFuel)} л</div>}
     </section>
     <section className="card"><label>Расчётный одометр</label><div className="calculated-value">{fmt(currentOdometer)} км</div><p className="muted">Начальный одометр {fmt(num(odometer))} км + пройдено {fmt(tripKm)} км</p></section>
-    <button className="secondary" onClick={() => setShowRefuel(true)}>⛽ Заправка АИ-92</button>
+
+    <section className="card"><div className="row"><h2>Заправки</h2><button className="small" onClick={() => setShowRefuel(true)}>＋ Заправка</button></div>
+      {!refuels.length ? <p className="muted">Заправок не было.</p> : refuels.map((litres, i) => <div className="item" key={i}><div><b>⛽ Заправка АИ-92</b><span>Заправлено топлива</span></div><strong>+{fmt(litres)} л</strong></div>)}
+      {!!refuels.length && <div className="totals">Всего заправлено: {fmt(addedFuel)} л</div>}
+    </section>
+
     <button className="primary big" onClick={() => setShowFinish(true)}>✓ Сдать путёвку</button>
 
     {showTrip && <div className="modal"><div className="modal-card"><div className="row"><h2>Новая поездка</h2><button className="icon" onClick={() => setShowTrip(false)}>×</button></div>
@@ -88,7 +93,7 @@ function App() {
 
     {showRefuel && <div className="modal"><div className="modal-card"><div className="row"><h2>Заправка АИ-92</h2><button className="icon" onClick={() => setShowRefuel(false)}>×</button></div><p>Сейчас в расчёте: <b>{fmt(remaining)} л</b></p><label>Заправлено, л</label><NumericInput autoFocus decimal placeholder="20" value={refuel} onChange={e => setRefuel(e.target.value)} onEnter={addRefuel}/><div className="preview">После заправки: <b>{fmt(remaining + num(refuel))} л</b></div><button className="primary" onClick={addRefuel}>Сохранить заправку</button></div></div>}
 
-    {showFinish && <div className="modal"><div className="modal-card"><div className="row"><h2>Сдача путёвки</h2><button className="icon" onClick={() => setShowFinish(false)}>×</button></div><div className="preview"><b>Итог:</b><br/>Начальный одометр: <b>{fmt(num(odometer))} км</b><br/>Пройдено: <b>{fmt(tripKm)} км</b><br/>Расчётный одометр: <b>{fmt(currentOdometer)} км</b><br/>Расчётный остаток: <b>{fmt(remaining)} л</b></div><button className="primary" onClick={() => { setShowFinish(false); alert('Путёвка сохранена'); }}>Сохранить путёвку</button></div></div>}
+    {showFinish && <div className="modal"><div className="modal-card"><div className="row"><h2>Сдача путёвки</h2><button className="icon" onClick={() => setShowFinish(false)}>×</button></div><div className="preview"><b>Итог:</b><br/>Начальный одометр: <b>{fmt(num(odometer))} км</b><br/>Пройдено: <b>{fmt(tripKm)} км</b><br/>Расчётный одометр: <b>{fmt(currentOdometer)} км</b><br/>Расход: <b>{fmt(usedFuel)} л</b><br/>Заправлено: <b>{fmt(addedFuel)} л</b><br/>Расчётный остаток: <b>{fmt(remaining)} л</b></div><button className="primary" onClick={() => { setShowFinish(false); alert('Путёвка сохранена'); }}>Сохранить путёвку</button></div></div>}
   </main>;
 }
 
