@@ -1,0 +1,11 @@
+{
+  "name": "Путёвка",
+  "short_name": "Путёвка",
+  "description": "Электронная путёвка",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "lang": "ru-RU"
+}
