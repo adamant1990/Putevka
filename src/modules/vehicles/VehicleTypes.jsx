@@ -42,8 +42,8 @@ export default function VehicleTypes() {
         city_consumption: numberValue(form.city),
         highway_consumption: numberValue(form.highway),
       };
-      if (editing) await updateVehicleType(editing.id, changes);
-      else await createVehicleType(changes);
+      if (editing?.id) await updateVehicleType(editing.id, changes);
+      else await createVehicleType({ name: changes.name, cityConsumption: changes.city_consumption, highwayConsumption: changes.highway_consumption });
       reset();
       await load();
     } catch (e) {
