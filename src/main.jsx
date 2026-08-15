@@ -65,6 +65,21 @@ function App({ user, profile, onLogout }) {
   const cityKm=sum(city),highwayKm=sum(highway),draftFuel=cityKm*Number(norm.city_consumption)/100+highwayKm*Number(norm.highway_consumption)/100,usedFuel=trips.reduce((a,x)=>a+x.fuel,0),addedFuel=refuels.reduce((a,x)=>a+x,0),tripKm=trips.reduce((a,x)=>a+x.city+x.highway,0),currentOdometer=num(odometer)+tripKm,remaining=Math.max(0,num(startFuel)+addedFuel-usedFuel),lowFuel=remaining<=10;
   const addTrip=()=>{if(!cityKm&&!highwayKm)return;setTrips([...trips,{city:cityKm,highway:highwayKm,fuel:draftFuel}]);setCity('');setHighway('');setShowTrip(false)};
   const addRefuel=()=>{const litres=num(refuel);if(!litres)return;setRefuels([...refuels,litres]);setRefuel('');setShowRefuel(false)};
+  const resetWaybillForm=()=>{
+    setOdometer('');
+    setStartFuel('');
+    setOdometerLocked(false);
+    setStartFuelLocked(false);
+    setTrips([]);
+    setRefuels([]);
+    setCity('');
+    setHighway('');
+    setRefuel('');
+    setShowTrip(false);
+    setShowRefuel(false);
+    setShowFinish(false);
+    setSaveError('');
+  };
   const finishWaybill=async()=>{
     setSaveError('');
     if(!carId)return setSaveError('Не выбран автомобиль');
@@ -73,7 +88,7 @@ function App({ user, profile, onLogout }) {
     setSaveLoading(true);
     try {
       await saveWaybill({driverId:user.id,vehicleTypeId:carId,startOdometer:num(odometer),endOdometer:currentOdometer,startFuel:num(startFuel),fuelUsed:usedFuel,fuelAdded:addedFuel,endFuel:remaining,totalKm:tripKm,trips,refuels});
-      setShowFinish(false);
+      resetWaybillForm();
       alert('Путёвка сохранена');
     } catch (error) {
       setSaveError(error?.message||'Не удалось сохранить путёвку');
