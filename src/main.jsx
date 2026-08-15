@@ -41,6 +41,7 @@ function App() {
   const tripKm = trips.reduce((a, x) => a + x.city + x.highway, 0);
   const currentOdometer = num(odometer) + tripKm;
   const remaining = Math.max(0, num(startFuel) + addedFuel - usedFuel);
+  const lowFuel = remaining <= 10;
 
   const addTrip = () => {
     if (!cityKm && !highwayKm) return;
@@ -77,7 +78,7 @@ function App() {
       <label>Начальный остаток, л</label>
       <div className="locked-field"><NumericInput decimal value={startFuel} onChange={e => !startFuelLocked && setStartFuel(e.target.value)} placeholder="25" onEnter={() => setStartFuel(startFuel.trim())} /><button className="small" onClick={() => setStartFuelLocked(!startFuelLocked)}>{startFuelLocked ? 'Изменить' : 'Зафиксировать'}</button></div>
     </section>
-    <section className="fuelbox"><span>⛽ Расчётный остаток</span><strong>{fmt(remaining)} л</strong></section>
+    <section className={`fuelbox ${lowFuel ? 'fuelbox-low' : ''}`}><span>{lowFuel && <span className="warning">⚠️</span>} ⛽ Расчётный остаток</span><strong>{fmt(remaining)} л</strong></section>
     <section className="card"><div className="row"><h2>Поездки</h2><button className="small" onClick={() => setShowTrip(true)}>＋ Добавить</button></div>
       {!trips.length ? <p className="muted">Добавьте поездку.</p> : trips.map((t,i)=><div className="item" key={i}><div><b>Поездка {i+1}</b><span>Город {fmt(t.city)} км · Трасса {fmt(t.highway)} км</span></div><strong>−{fmt(t.fuel)} л</strong></div>)}
       {!!trips.length && <div className="totals">По поездкам: {fmt(tripKm)} км · Расход: {fmt(usedFuel)} л</div>}
