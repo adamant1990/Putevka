@@ -75,7 +75,6 @@ function App() {
       {!trips.length ? <p className="muted">Добавьте поездку.</p> : trips.map((t,i)=><div className="item" key={i}><div><b>Поездка {i+1}</b><span>Город {fmt(t.city)} км · Трасса {fmt(t.highway)} км</span></div><strong>−{fmt(t.fuel)} л</strong></div>)}
       {!!trips.length && <div className="totals">По поездкам: {fmt(tripKm)} км · Расход: {fmt(usedFuel)} л</div>}
     </section>
-    <section className="card"><label>Расчётный одометр</label><div className="calculated-value">{fmt(currentOdometer)} км</div><p className="muted">Начальный одометр {fmt(num(odometer))} км + пройдено {fmt(tripKm)} км</p></section>
 
     <section className="card"><div className="row"><h2>Заправки</h2><button className="small" onClick={() => setShowRefuel(true)}>＋ Заправка</button></div>
       {!refuels.length ? <p className="muted">Заправок не было.</p> : refuels.map((litres, i) => <div className="item" key={i}><div><b>⛽ Заправка АИ-92</b><span>Заправлено топлива</span></div><strong>+{fmt(litres)} л</strong></div>)}
