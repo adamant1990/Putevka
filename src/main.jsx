@@ -11,6 +11,11 @@ const num = v => Number(String(v).replace(',', '.').replace(/[^0-9.]/g, '')) || 
 const sum = v => String(v).trim().split(/\s+/).filter(Boolean).reduce((a, x) => a + num(x), 0);
 const fmt = n => Number(n || 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 });
 
+function NumericInput({ value, onChange, onEnter, placeholder = '', decimal = false, autoFocus = false }) {
+  const apply = e => { if (e.key === 'Enter') { e.preventDefault(); onEnter?.(); e.currentTarget.blur(); } };
+  return <input autoFocus={autoFocus} inputMode={decimal ? 'decimal' : 'numeric'} pattern={decimal ? '[0-9,. ]*' : '[0-9 ]*'} type="text" enterKeyHint="done" placeholder={placeholder} value={value} onChange={onChange} onKeyDown={apply} />;
+}
+
 function App() {
   const [screen, setScreen] = useState('home');
   const [carId, setCarId] = useState(1);
@@ -37,7 +42,6 @@ function App() {
     setTrips([...trips, { city: cityKm, highway: highwayKm, fuel: draftFuel }]);
     setCity(''); setHighway(''); setShowTrip(false);
   };
-
   const addRefuel = () => {
     const litres = num(refuel);
     if (!litres) return;
@@ -54,15 +58,15 @@ function App() {
   if (screen === 'admin') return <main className="app">
     <header><div><h1>Администратор</h1><p>Нормы расхода</p></div><button className="icon" onClick={() => setScreen('home')}>×</button></header>
     <section className="card"><label>🚗 Автомобиль</label><select value={carId} onChange={e => setCarId(e.target.value)}>{cars.map(c => <option value={c.id} key={c.id}>{c.name}</option>)}</select>
-      <h3>Лето, л/100 км</h3><div className="norm-row"><span>Город</span><input defaultValue={car.summer.city}/><span>Трасса</span><input defaultValue={car.summer.highway}/></div>
-      <h3>Зима, л/100 км</h3><div className="norm-row"><span>Город</span><input defaultValue={car.winter.city}/><span>Трасса</span><input defaultValue={car.winter.highway}/></div>
+      <h3>Лето, л/100 км</h3><div className="norm-row"><span>Город</span><NumericInput decimal defaultValue={car.summer.city}/><span>Трасса</span><NumericInput decimal defaultValue={car.summer.highway}/></div>
+      <h3>Зима, л/100 км</h3><div className="norm-row"><span>Город</span><NumericInput decimal defaultValue={car.winter.city}/><span>Трасса</span><NumericInput decimal defaultValue={car.winter.highway}/></div>
       <button className="primary">Сохранить</button>
     </section>
   </main>;
 
   return <main className="app">
     <header><div><h1>Новая путёвка</h1><p>{car.name}</p></div><button className="icon" onClick={() => setScreen('home')}>×</button></header>
-    <section className="card"><label>Одометр при выезде</label><input inputMode="numeric" placeholder="125480" value={odometer} onChange={e => setOdometer(e.target.value)}/><label>Начальный остаток, л</label><input inputMode="decimal" placeholder="25" value={startFuel} onChange={e => setStartFuel(e.target.value)}/></section>
+    <section className="card"><label>Одометр при выезде</label><NumericInput value={odometer} onChange={e => setOdometer(e.target.value)} placeholder="125480" onEnter={() => setOdometer(odometer.trim())}/><label>Начальный остаток, л</label><NumericInput decimal value={startFuel} onChange={e => setStartFuel(e.target.value)} placeholder="25" onEnter={() => setStartFuel(startFuel.trim())}/></section>
     <section className="fuelbox"><span>⛽ Расчётный остаток</span><strong>{fmt(remaining)} л</strong></section>
     <section className="card"><div className="row"><h2>Поездки</h2><button className="small" onClick={() => setShowTrip(true)}>＋ Добавить</button></div>
       {!trips.length ? <p className="muted">Добавьте поездку.</p> : trips.map((t,i)=><div className="item" key={i}><div><b>Поездка {i+1}</b><span>Город {fmt(t.city)} км · Трасса {fmt(t.highway)} км</span></div><strong>−{fmt(t.fuel)} л</strong></div>)}
@@ -72,13 +76,13 @@ function App() {
     <button className="primary big" onClick={() => alert(`Путёвка завершена. Расчётный остаток: ${fmt(remaining)} л`)}>✓ Завершить путёвку</button>
 
     {showTrip && <div className="modal"><div className="modal-card"><div className="row"><h2>Новая поездка</h2><button className="icon" onClick={() => setShowTrip(false)}>×</button></div>
-      <label>Город, км</label><input autoFocus placeholder="25 31" value={city} onChange={e => setCity(e.target.value)}/>
-      <label>Трасса, км</label><input placeholder="120 80" value={highway} onChange={e => setHighway(e.target.value)}/>
+      <label>Город, км</label><NumericInput autoFocus placeholder="25 31" value={city} onChange={e => setCity(e.target.value)} onEnter={addTrip}/>
+      <label>Трасса, км</label><NumericInput placeholder="120 80" value={highway} onChange={e => setHighway(e.target.value)} onEnter={addTrip}/>
       <div className="preview">Город: <b>{fmt(cityKm)} км</b><br/>Трасса: <b>{fmt(highwayKm)} км</b><br/>Расход: <b>{fmt(draftFuel)} л</b><br/>Остаток после поездки: <b>{fmt(remaining - draftFuel)} л</b></div>
       <button className="primary" onClick={addTrip}>Добавить поездку</button>
     </div></div>}
 
-    {showRefuel && <div className="modal"><div className="modal-card"><div className="row"><h2>Заправка АИ-92</h2><button className="icon" onClick={() => setShowRefuel(false)}>×</button></div><p>Сейчас в расчёте: <b>{fmt(remaining)} л</b></p><label>Заправлено, л</label><input autoFocus inputMode="decimal" placeholder="20" value={refuel} onChange={e => setRefuel(e.target.value)}/><div className="preview">После заправки: <b>{fmt(remaining + num(refuel))} л</b></div><button className="primary" onClick={addRefuel}>Сохранить заправку</button></div></div>}
+    {showRefuel && <div className="modal"><div className="modal-card"><div className="row"><h2>Заправка АИ-92</h2><button className="icon" onClick={() => setShowRefuel(false)}>×</button></div><p>Сейчас в расчёте: <b>{fmt(remaining)} л</b></p><label>Заправлено, л</label><NumericInput autoFocus decimal placeholder="20" value={refuel} onChange={e => setRefuel(e.target.value)} onEnter={addRefuel}/><div className="preview">После заправки: <b>{fmt(remaining + num(refuel))} л</b></div><button className="primary" onClick={addRefuel}>Сохранить заправку</button></div></div>}
   </main>;
 }
 
