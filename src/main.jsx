@@ -1,15 +1,35 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
 const SETTINGS_KEY = 'putevka_calculator_settings';
 const SHIFT_KEY = 'putevka_shift_data';
 const HISTORY_KEY = 'putevka_shift_history';
-const DEFAULT_SETTINGS = { city: 18, highway: 14 };
-const DEFAULT_SHIFT = { id: '', date: '', odometer: '', startFuel: '', trips: [], refuels: [], completed: false };
+
+const DEFAULT_SETTINGS = {
+  vehicles: [{ id: 'vehicle-1', name: 'Автомобиль 1', city: 18, highway: 14 }],
+  activeVehicleId: 'vehicle-1'
+};
+
+const DEFAULT_SHIFT = {
+  id: '',
+  date: '',
+  odometer: '',
+  startFuel: '',
+  trips: [],
+  refuels: [],
+  completed: false,
+  vehicleId: 'vehicle-1'
+};
 
 const today = () => new Date().toISOString().slice(0, 10);
-const makeShift = (overrides = {}) => ({ ...DEFAULT_SHIFT, id: String(Date.now()), date: today(), ...overrides });
+const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const makeShift = (overrides = {}) => ({
+  ...DEFAULT_SHIFT,
+  id: makeId(),
+  date: today(),
+  ...overrides
+});
 
 const sumValues = value => String(value ?? '')
   .replace(/,/g, '.')
@@ -26,55 +46,191 @@ const formatDate = value => {
 };
 
 const calculateEndOdometer = shift => {
-  const km = shift.trips.reduce((sum, trip) => sum + numberValue(trip.cityKm) + numberValue(trip.highwayKm), 0);
+  const trips = Array.isArray(shift.trips) ? shift.trips : [];
+  const km = trips.reduce(
+    (sum, trip) => sum + numberValue(trip.cityKm) + numberValue(trip.highwayKm),
+    0
+  );
   const start = numberValue(shift.odometer);
   return start > 0 ? start + km : 0;
 };
 
-function Settings({ settings, onSave, onBack }) {
-  const [city, setCity] = useState(String(settings.city ?? ''));
-  const [highway, setHighway] = useState(String(settings.highway ?? ''));
+const normalizeSettings = saved => {
+  if (!saved || typeof saved !== 'object') return DEFAULT_SETTINGS;
+
+  if (Array.isArray(saved.vehicles) && saved.vehicles.length > 0) {
+    const vehicles = saved.vehicles.map((vehicle, index) => ({
+      id: vehicle.id || `vehicle-${index + 1}`,
+      name: String(vehicle.name || `Автомобиль ${index + 1}`),
+      city: numberValue(vehicle.city),
+      highway: numberValue(vehicle.highway)
+    }));
+    const activeVehicleId = vehicles.some(vehicle => vehicle.id === saved.activeVehicleId)
+      ? saved.activeVehicleId
+      : vehicles[0].id;
+    return { vehicles, activeVehicleId };
+  }
+
+  // Миграция старых настроек: раньше нормы были общими для одного автомобиля.
+  const vehicle = {
+    id: 'vehicle-1',
+    name: 'Автомобиль 1',
+    city: numberValue(saved.city ?? 18) || 18,
+    highway: numberValue(saved.highway ?? 14) || 14
+  };
+  return { vehicles: [vehicle], activeVehicleId: vehicle.id };
+};
+
+const normalizeShift = item => ({
+  ...DEFAULT_SHIFT,
+  ...(item || {}),
+  id: item?.id || makeId(),
+  date: item?.date || today(),
+  trips: Array.isArray(item?.trips) ? item.trips : [],
+  refuels: Array.isArray(item?.refuels) ? item.refuels : [],
+  completed: Boolean(item?.completed),
+  vehicleId: item?.vehicleId || 'vehicle-1'
+});
+
+function Settings({ settings, history, onSave, onBack }) {
+  const [vehicles, setVehicles] = useState(settings.vehicles);
+  const [activeVehicleId, setActiveVehicleId] = useState(settings.activeVehicleId);
+
+  const addVehicle = () => {
+    const number = vehicles.length + 1;
+    const vehicle = {
+      id: makeId(),
+      name: `Автомобиль ${number}`,
+      city: 18,
+      highway: 14
+    };
+    setVehicles(prev => [...prev, vehicle]);
+    setActiveVehicleId(vehicle.id);
+  };
+
+  const updateVehicle = (id, field, value) => {
+    setVehicles(prev => prev.map(vehicle => (
+      vehicle.id === id
+        ? { ...vehicle, [field]: field === 'name' ? value : value }
+        : vehicle
+    )));
+  };
+
+  const removeVehicle = id => {
+    if (vehicles.length <= 1) {
+      window.alert('Должен остаться хотя бы один автомобиль.');
+      return;
+    }
+
+    if (history.some(item => item.vehicleId === id)) {
+      window.alert('Этот автомобиль уже используется в сохранённых путёвках. Сначала оставьте его в списке, чтобы история не потеряла привязку к автомобилю.');
+      return;
+    }
+
+    if (!window.confirm('Удалить этот автомобиль?')) return;
+
+    const next = vehicles.filter(vehicle => vehicle.id !== id);
+    setVehicles(next);
+    if (activeVehicleId === id) setActiveVehicleId(next[0].id);
+  };
 
   const save = () => {
-    onSave({ city: numberValue(city), highway: numberValue(highway) });
+    const cleanedVehicles = vehicles.map((vehicle, index) => ({
+      ...vehicle,
+      name: String(vehicle.name || `Автомобиль ${index + 1}`).trim(),
+      city: numberValue(vehicle.city),
+      highway: numberValue(vehicle.highway)
+    }));
+
+    onSave({
+      vehicles: cleanedVehicles,
+      activeVehicleId: cleanedVehicles.some(vehicle => vehicle.id === activeVehicleId)
+        ? activeVehicleId
+        : cleanedVehicles[0].id
+    });
     onBack();
   };
 
   return <main className="app">
-    <header><div><h1>Настройки</h1><p>Нормы расхода топлива</p></div><button className="icon" onClick={onBack}>×</button></header>
+    <header>
+      <div><h1>Настройки</h1><p>Автомобили и нормы расхода</p></div>
+      <button className="icon" onClick={onBack}>×</button>
+    </header>
+
     <section className="card">
-      <h2>Расход топлива</h2>
-      <p className="muted">Укажите норму расхода автомобиля в литрах на 100 км.</p>
-      <label>🏙️ Город, л/100 км</label>
-      <input inputMode="decimal" value={city} onChange={e => setCity(e.target.value)} placeholder="18" autoFocus />
-      <label>🛣️ Трасса, л/100 км</label>
-      <input inputMode="decimal" value={highway} onChange={e => setHighway(e.target.value)} placeholder="14" onKeyDown={e => e.key === 'Enter' && save()} />
+      <h2>Автомобили</h2>
+      <p className="muted">Добавьте все автомобили, которыми пользуетесь. Для каждого автомобиля задаются свои нормы расхода.</p>
+
+      {vehicles.map((vehicle, index) => <div className="card vehicle-card" key={vehicle.id}>
+        <div className="row">
+          <h2>{vehicle.name || `Автомобиль ${index + 1}`}</h2>
+          {vehicles.length > 1 && <button className="delete" onClick={() => removeVehicle(vehicle.id)}>×</button>}
+        </div>
+
+        <label>🚗 Название автомобиля</label>
+        <input
+          value={vehicle.name}
+          onChange={e => updateVehicle(vehicle.id, 'name', e.target.value)}
+          placeholder="Например, Hyundai Solaris"
+        />
+
+        <label>🏙️ Город, л/100 км</label>
+        <input
+          inputMode="decimal"
+          value={vehicle.city}
+          onChange={e => updateVehicle(vehicle.id, 'city', e.target.value)}
+          placeholder="18"
+        />
+
+        <label>🛣️ Трасса, л/100 км</label>
+        <input
+          inputMode="decimal"
+          value={vehicle.highway}
+          onChange={e => updateVehicle(vehicle.id, 'highway', e.target.value)}
+          placeholder="14"
+        />
+
+        <label className="radio-row">
+          <input
+            type="radio"
+            name="activeVehicle"
+            checked={activeVehicleId === vehicle.id}
+            onChange={() => setActiveVehicleId(vehicle.id)}
+          />
+          <span>Использовать для новых смен</span>
+        </label>
+      </div>)}
+
+      <button className="primary" onClick={addVehicle}>＋ Добавить автомобиль</button>
       <button className="primary big" onClick={save}>Сохранить настройки</button>
     </section>
   </main>;
 }
 
-function History({ history, currentId, onOpen, onNew, onBack }) {
+function History({ history, currentId, onOpen, onNew, onBack, settings }) {
+  const vehicleName = id => settings.vehicles.find(vehicle => vehicle.id === id)?.name || 'Автомобиль';
+
   return <main className="app">
     <header>
       <div><h1>Мои путёвки</h1><p>Сохранённые смены</p></div>
       <button className="icon" onClick={onBack}>×</button>
     </header>
+
     <section className="card">
       <button className="primary big" onClick={onNew}>＋ Новая смена</button>
-      <p className="muted">Завершённые смены сохраняются в истории. Старую смену можно открыть и посмотреть или продолжить редактировать.</p>
+      <p className="muted">Завершённые смены сохраняются в истории. Каждая путёвка хранит свой автомобиль и его нормы расхода.</p>
     </section>
+
     <section className="card">
       <div className="row"><h2>Смены</h2><span className="badge">{history.length}</span></div>
       {history.length === 0 ? <p className="muted">Пока нет сохранённых смен.</p> : <div className="list">
         {history.map(shift => {
           const km = shift.trips.reduce((sum, trip) => sum + numberValue(trip.cityKm) + numberValue(trip.highwayKm), 0);
-          const startOdometer = numberValue(shift.odometer);
-          const endOdometer = startOdometer > 0 ? startOdometer + km : 0;
+          const endOdometer = calculateEndOdometer(shift);
           return <button className={`history-item ${shift.id === currentId ? 'active' : ''}`} key={shift.id} onClick={() => onOpen(shift.id)}>
             <div>
               <b>{formatDate(shift.date)} {shift.completed ? '· Завершена' : '· Текущая'}</b>
-              <span>{shift.trips.length} поездок · {format(km)} км{endOdometer > 0 ? ` · одометр ${format(endOdometer)} км` : ''} · {shift.refuels.length} заправок</span>
+              <span>{vehicleName(shift.vehicleId)} · {shift.trips.length} поездок · {format(km)} км{endOdometer > 0 ? ` · одометр ${format(endOdometer)} км` : ''} · {shift.refuels.length} заправок</span>
             </div>
             <strong>›</strong>
           </button>;
@@ -89,25 +245,35 @@ function Calculator({ settings, shift, onChange, onSettings, onHistory, onFinish
   const [newHighway, setNewHighway] = useState('');
   const [newRefuel, setNewRefuel] = useState('');
 
+  const vehicle = useMemo(
+    () => settings.vehicles.find(item => item.id === shift.vehicleId) || settings.vehicles[0],
+    [settings.vehicles, shift.vehicleId]
+  );
+
+  const cityNorm = numberValue(vehicle?.city);
+  const highwayNorm = numberValue(vehicle?.highway);
   const trips = shift.trips;
   const refuels = shift.refuels;
   const city = trips.reduce((sum, trip) => sum + numberValue(trip.cityKm), 0);
   const highway = trips.reduce((sum, trip) => sum + numberValue(trip.highwayKm), 0);
   const totalKm = city + highway;
-  const cityFuel = city * numberValue(settings.city) / 100;
-  const highwayFuel = highway * numberValue(settings.highway) / 100;
+  const cityFuel = city * cityNorm / 100;
+  const highwayFuel = highway * highwayNorm / 100;
   const totalFuel = cityFuel + highwayFuel;
   const totalRefuel = refuels.reduce((sum, item) => sum + numberValue(item.liters), 0);
   const startFuel = numberValue(shift.startFuel);
   const estimatedEndFuel = startFuel + totalRefuel - totalFuel;
   const remainingFuel = Math.max(0, estimatedEndFuel);
-  const remainingCityKm = numberValue(settings.city) > 0 ? remainingFuel * 100 / numberValue(settings.city) : 0;
+  const remainingCityKm = cityNorm > 0 ? remainingFuel * 100 / cityNorm : 0;
   const startOdometer = numberValue(shift.odometer);
   const endOdometer = calculateEndOdometer(shift);
 
   const addTrip = () => {
     if (numberValue(newCity) <= 0 && numberValue(newHighway) <= 0) return;
-    onChange(prev => ({ ...prev, trips: [...prev.trips, { id: String(Date.now()), cityKm: newCity, highwayKm: newHighway }] }));
+    onChange(prev => ({
+      ...prev,
+      trips: [...prev.trips, { id: makeId(), cityKm: newCity, highwayKm: newHighway }]
+    }));
     setNewCity('');
     setNewHighway('');
   };
@@ -117,7 +283,10 @@ function Calculator({ settings, shift, onChange, onSettings, onHistory, onFinish
   const addRefuel = () => {
     const liters = numberValue(newRefuel);
     if (liters <= 0) return;
-    onChange(prev => ({ ...prev, refuels: [...prev.refuels, { id: String(Date.now()), liters: newRefuel }] }));
+    onChange(prev => ({
+      ...prev,
+      refuels: [...prev.refuels, { id: makeId(), liters: newRefuel }]
+    }));
     setNewRefuel('');
   };
 
@@ -137,6 +306,11 @@ function Calculator({ settings, shift, onChange, onSettings, onHistory, onFinish
         <button className="icon" onClick={onSettings} title="Настройки">⚙️</button>
       </div>
     </header>
+
+    <section className="card">
+      <div className="row"><h2>Автомобиль</h2><span className="badge">{vehicle?.name || 'Не выбран'}</span></div>
+      <p className="muted">Для этой путёвки используются нормы выбранного автомобиля.</p>
+    </section>
 
     <section className="card">
       <div className="row"><h2>Данные смены</h2><button className="small" onClick={clear}>Очистить</button></div>
@@ -188,8 +362,8 @@ function Calculator({ settings, shift, onChange, onSettings, onHistory, onFinish
 
     <section className="card results">
       <h2>Результат</h2>
-      <div className="item"><div><b>Город</b><span>{format(city)} км × {format(settings.city)} л/100 км</span></div><strong>{format(cityFuel)} л</strong></div>
-      <div className="item"><div><b>Трасса</b><span>{format(highway)} км × {format(settings.highway)} л/100 км</span></div><strong>{format(highwayFuel)} л</strong></div>
+      <div className="item"><div><b>Город</b><span>{format(city)} км × {format(cityNorm)} л/100 км</span></div><strong>{format(cityFuel)} л</strong></div>
+      <div className="item"><div><b>Трасса</b><span>{format(highway)} км × {format(highwayNorm)} л/100 км</span></div><strong>{format(highwayFuel)} л</strong></div>
       <div className="totals"><span>Всего пробег</span><strong>{format(totalKm)} км</strong></div>
       <div className="totals"><span>Расход по норме</span><strong>{format(totalFuel)} л</strong></div>
       <div className="totals"><span>Заправлено</span><strong>{format(totalRefuel)} л</strong></div>
@@ -205,9 +379,9 @@ function Calculator({ settings, shift, onChange, onSettings, onHistory, onFinish
     </section>}
 
     <section className="card norms-card">
-      <div className="row"><h2>Текущие нормы</h2><button className="small" onClick={onSettings}>Изменить</button></div>
-      <div className="norm-row"><span>🏙️ Город</span><b>{format(settings.city)} л/100 км</b></div>
-      <div className="norm-row"><span>🛣️ Трасса</span><b>{format(settings.highway)} л/100 км</b></div>
+      <div className="row"><h2>Нормы автомобиля</h2><button className="small" onClick={onSettings}>Изменить</button></div>
+      <div className="norm-row"><span>🏙️ Город</span><b>{format(cityNorm)} л/100 км</b></div>
+      <div className="norm-row"><span>🛣️ Трасса</span><b>{format(highwayNorm)} л/100 км</b></div>
     </section>
   </main>;
 }
@@ -221,87 +395,117 @@ function App() {
   useEffect(() => {
     try {
       const savedSettings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
-      if (savedSettings && typeof savedSettings === 'object') setSettings({ city: numberValue(savedSettings.city), highway: numberValue(savedSettings.highway) });
+      setSettings(normalizeSettings(savedSettings));
 
       const savedHistory = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-      const normalizedHistory = Array.isArray(savedHistory) ? savedHistory.map(item => ({
-        ...DEFAULT_SHIFT,
-        ...item,
-        id: item.id || String(Date.now() + Math.random()),
-        date: item.date || today(),
-        completed: Boolean(item.completed),
-        trips: Array.isArray(item.trips) ? item.trips : [],
-        refuels: Array.isArray(item.refuels) ? item.refuels : []
-      })) : [];
+      const normalizedHistory = Array.isArray(savedHistory)
+        ? savedHistory.map(normalizeShift)
+        : [];
       setHistory(normalizedHistory);
 
       const savedShift = JSON.parse(localStorage.getItem(SHIFT_KEY) || 'null');
-      if (savedShift && typeof savedShift === 'object') {
-        setShift({ ...DEFAULT_SHIFT, ...savedShift, id: savedShift.id || String(Date.now()), date: savedShift.date || today(), completed: Boolean(savedShift.completed), trips: Array.isArray(savedShift.trips) ? savedShift.trips : [], refuels: Array.isArray(savedShift.refuels) ? savedShift.refuels : [] });
-      } else if (normalizedHistory.length > 0) {
-        setShift(normalizedHistory.find(item => !item.completed) || normalizedHistory[0]);
+      if (savedShift) {
+        setShift(normalizeShift(savedShift));
       } else {
-        setShift(makeShift());
+        const current = normalizedHistory.find(item => !item.completed);
+        setShift(current || makeShift({ vehicleId: normalizeSettings(savedSettings).activeVehicleId }));
       }
     } catch {
+      setSettings(DEFAULT_SETTINGS);
+      setHistory([]);
       setShift(makeShift());
     }
   }, []);
 
   useEffect(() => {
-    if (!shift) return;
-    localStorage.setItem(SHIFT_KEY, JSON.stringify(shift));
-    setHistory(prev => {
-      const exists = prev.some(item => item.id === shift.id);
-      const next = exists ? prev.map(item => item.id === shift.id ? shift : item) : [shift, ...prev];
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
-      return next;
-    });
+    if (shift) localStorage.setItem(SHIFT_KEY, JSON.stringify(shift));
   }, [shift]);
 
-  const saveSettings = next => {
-    const safe = { city: numberValue(next.city), highway: numberValue(next.highway) };
-    setSettings(safe);
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(safe));
-  };
+  useEffect(() => {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  }, [history]);
 
-  const newShift = () => {
-    const next = makeShift();
-    setShift(next);
-    setScreen('calculator');
-  };
+  useEffect(() => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  }, [settings]);
 
-  const finishShift = () => {
-    if (shift.completed) return;
-    const endOdometer = calculateEndOdometer(shift);
-    if (!window.confirm('Завершить смену?\n\nПосле завершения текущая путёвка будет сохранена в историю, и будет создана новая смена.')) return;
+  const saveSettings = nextSettings => {
+    const normalized = normalizeSettings(nextSettings);
+    setSettings(normalized);
 
-    const completedShift = { ...shift, completed: true };
-    const nextShift = makeShift({ odometer: endOdometer > 0 ? String(endOdometer) : '', startFuel: '', trips: [], refuels: [], completed: false });
-
-    setHistory(prev => {
-      const withoutCurrent = prev.filter(item => item.id !== shift.id);
-      const nextHistory = [completedShift, ...withoutCurrent];
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(nextHistory));
-      return nextHistory;
+    // Если текущая смена ещё не начата, новая смена получает выбранный автомобиль.
+    setShift(prev => {
+      if (!prev) return prev;
+      const hasData = prev.odometer !== '' || prev.startFuel !== '' || prev.trips.length > 0 || prev.refuels.length > 0;
+      return hasData ? prev : { ...prev, vehicleId: normalized.activeVehicleId };
     });
-    localStorage.setItem(HISTORY_KEY, JSON.stringify([completedShift, ...history.filter(item => item.id !== shift.id)]));
-    setShift(nextShift);
+  };
+
+  const createNewShift = () => {
+    const next = makeShift({ vehicleId: settings.activeVehicleId });
+    setShift(next);
     setScreen('calculator');
   };
 
   const openShift = id => {
     const found = history.find(item => item.id === id);
-    if (found) {
-      setShift({ ...found, trips: [...found.trips], refuels: [...found.refuels] });
-      setScreen('calculator');
-    }
+    if (!found) return;
+    setShift(normalizeShift(found));
+    setScreen('calculator');
   };
 
-  if (!shift) return <main className="app"><section className="card"><p>Загрузка путёвки…</p></section></main>;
-  if (screen === 'history') return <History history={history} currentId={shift.id} onOpen={openShift} onNew={newShift} onBack={() => setScreen('calculator')} />;
-  if (screen === 'settings') return <Settings settings={settings} onSave={saveSettings} onBack={() => setScreen('calculator')} />;
-  return <Calculator settings={settings} shift={shift} onChange={setShift} onSettings={() => setScreen('settings')} onHistory={() => setScreen('history')} onFinish={finishShift} />;
+  const finishShift = () => {
+    if (!shift || shift.completed) return;
+
+    const confirmed = window.confirm(
+      'Завершить смену?\n\nТекущая путёвка будет сохранена в историю, после чего форма полностью очистится и создастся новая смена.'
+    );
+    if (!confirmed) return;
+
+    const endOdometer = calculateEndOdometer(shift);
+    const completedShift = { ...normalizeShift(shift), completed: true };
+    const nextShift = makeShift({
+      odometer: endOdometer > 0 ? String(endOdometer) : '',
+      startFuel: '',
+      trips: [],
+      refuels: [],
+      completed: false,
+      vehicleId: shift.vehicleId || settings.activeVehicleId
+    });
+
+    setHistory(prev => [completedShift, ...prev.filter(item => item.id !== completedShift.id)]);
+    setShift(nextShift);
+    setScreen('calculator');
+
+    // Явно очищаем старую текущую путёвку из localStorage сразу.
+    localStorage.setItem(SHIFT_KEY, JSON.stringify(nextShift));
+  };
+
+  if (!shift) return <main className="app"><section className="card"><p>Загрузка…</p></section></main>;
+
+  if (screen === 'settings') {
+    return <Settings settings={settings} history={history} onSave={saveSettings} onBack={() => setScreen('calculator')} />;
+  }
+
+  if (screen === 'history') {
+    return <History
+      history={history}
+      currentId={shift.id}
+      settings={settings}
+      onOpen={openShift}
+      onNew={createNewShift}
+      onBack={() => setScreen('calculator')}
+    />;
+  }
+
+  return <Calculator
+    settings={settings}
+    shift={shift}
+    onChange={setShift}
+    onSettings={() => setScreen('settings')}
+    onHistory={() => setScreen('history')}
+    onFinish={finishShift}
+  />;
 }
 
 createRoot(document.getElementById('root')).render(<App />);
