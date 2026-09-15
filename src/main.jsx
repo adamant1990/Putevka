@@ -4,8 +4,12 @@ import './styles.css';
 
 const SETTINGS_KEY = 'putevka_calculator_settings';
 const SHIFT_KEY = 'putevka_shift_data';
+const HISTORY_KEY = 'putevka_shift_history';
 const DEFAULT_SETTINGS = { city: 18, highway: 14 };
-const DEFAULT_SHIFT = { odometer: '', startFuel: '', trips: [], refuels: [] };
+const DEFAULT_SHIFT = { id: '', date: '', odometer: '', startFuel: '', trips: [], refuels: [] };
+
+const today = () => new Date().toISOString().slice(0, 10);
+const makeShift = () => ({ ...DEFAULT_SHIFT, id: String(Date.now()), date: today() });
 
 const sumValues = value => String(value ?? '')
   .replace(/,/g, '.')
@@ -15,6 +19,11 @@ const sumValues = value => String(value ?? '')
 
 const numberValue = value => sumValues(value);
 const format = value => Number(value || 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+const formatDate = value => {
+  if (!value) return 'Без даты';
+  const [year, month, day] = value.split('-');
+  return year && month && day ? `${day}.${month}.${year}` : value;
+};
 
 function Settings({ settings, onSave, onBack }) {
   const [city, setCity] = useState(String(settings.city ?? ''));
@@ -39,29 +48,37 @@ function Settings({ settings, onSave, onBack }) {
   </main>;
 }
 
-function Calculator({ settings, onSettings }) {
-  const [shift, setShift] = useState(DEFAULT_SHIFT);
+function History({ history, currentId, onOpen, onNew, onBack }) {
+  return <main className="app">
+    <header>
+      <div><h1>Мои путёвки</h1><p>Сохранённые смены</p></div>
+      <button className="icon" onClick={onBack}>×</button>
+    </header>
+
+    <section className="card">
+      <button className="primary big" onClick={onNew}>＋ Новая смена</button>
+      <p className="muted">Каждая смена хранится отдельно. Старую смену можно открыть и продолжить редактировать.</p>
+    </section>
+
+    <section className="card">
+      <div className="row"><h2>Смены</h2><span className="badge">{history.length}</span></div>
+      {history.length === 0 ? <p className="muted">Пока нет сохранённых смен.</p> : <div className="list">
+        {history.map(shift => {
+          const km = shift.trips.reduce((sum, trip) => sum + numberValue(trip.cityKm) + numberValue(trip.highwayKm), 0);
+          return <button className={`history-item ${shift.id === currentId ? 'active' : ''}`} key={shift.id} onClick={() => onOpen(shift.id)}>
+            <div><b>{formatDate(shift.date)}</b><span>{shift.trips.length} поездок · {format(km)} км · {shift.refuels.length} заправок</span></div>
+            <strong>›</strong>
+          </button>;
+        })}
+      </div>}
+    </section>
+  </main>;
+}
+
+function Calculator({ settings, shift, onChange, onSettings, onHistory }) {
   const [newCity, setNewCity] = useState('');
   const [newHighway, setNewHighway] = useState('');
   const [newRefuel, setNewRefuel] = useState('');
-
-  useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(SHIFT_KEY) || 'null');
-      if (saved && typeof saved === 'object') {
-        setShift({
-          ...DEFAULT_SHIFT,
-          ...saved,
-          trips: Array.isArray(saved.trips) ? saved.trips : [],
-          refuels: Array.isArray(saved.refuels) ? saved.refuels : []
-        });
-      }
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(SHIFT_KEY, JSON.stringify(shift));
-  }, [shift]);
 
   const trips = shift.trips;
   const refuels = shift.refuels;
@@ -77,44 +94,51 @@ function Calculator({ settings, onSettings }) {
 
   const addTrip = () => {
     if (numberValue(newCity) <= 0 && numberValue(newHighway) <= 0) return;
-    setShift(prev => ({
+    onChange(prev => ({
       ...prev,
-      trips: [...prev.trips, { id: Date.now(), cityKm: newCity, highwayKm: newHighway }]
+      trips: [...prev.trips, { id: String(Date.now()), cityKm: newCity, highwayKm: newHighway }]
     }));
     setNewCity('');
     setNewHighway('');
   };
 
-  const deleteTrip = id => setShift(prev => ({ ...prev, trips: prev.trips.filter(trip => trip.id !== id) }));
+  const deleteTrip = id => onChange(prev => ({ ...prev, trips: prev.trips.filter(trip => trip.id !== id) }));
 
   const addRefuel = () => {
     const liters = numberValue(newRefuel);
     if (liters <= 0) return;
-    setShift(prev => ({
+    onChange(prev => ({
       ...prev,
-      refuels: [...prev.refuels, { id: Date.now(), liters: newRefuel }]
+      refuels: [...prev.refuels, { id: String(Date.now()), liters: newRefuel }]
     }));
     setNewRefuel('');
   };
 
-  const deleteRefuel = id => setShift(prev => ({ ...prev, refuels: prev.refuels.filter(item => item.id !== id) }));
+  const deleteRefuel = id => onChange(prev => ({ ...prev, refuels: prev.refuels.filter(item => item.id !== id) }));
 
   const clear = () => {
-    if (window.confirm('Очистить данные текущей смены, поездки и заправки?')) setShift(DEFAULT_SHIFT);
+    if (window.confirm('Очистить данные текущей смены, поездки и заправки?')) {
+      onChange(prev => ({ ...prev, odometer: '', startFuel: '', trips: [], refuels: [] }));
+    }
   };
 
   return <main className="app">
     <header>
-      <div><h1>Путёвка</h1><p>Расход топлива по путевому листу</p></div>
-      <button className="icon" onClick={onSettings} title="Настройки">⚙️</button>
+      <div><h1>Путёвка</h1><p>Смена от {formatDate(shift.date)}</p></div>
+      <div className="header-actions">
+        <button className="icon" onClick={onHistory} title="Мои путёвки">📋</button>
+        <button className="icon" onClick={onSettings} title="Настройки">⚙️</button>
+      </div>
     </header>
 
     <section className="card">
       <div className="row"><h2>Данные смены</h2><button className="small" onClick={clear}>Очистить</button></div>
+      <label>📅 Дата смены</label>
+      <input type="date" value={shift.date} onChange={e => onChange(prev => ({ ...prev, date: e.target.value }))} />
       <label>🚗 Пробег по одометру, км</label>
-      <input inputMode="decimal" value={shift.odometer} onChange={e => setShift(prev => ({ ...prev, odometer: e.target.value }))} placeholder="Например, 125430" autoFocus />
+      <input inputMode="decimal" value={shift.odometer} onChange={e => onChange(prev => ({ ...prev, odometer: e.target.value }))} placeholder="Например, 125430" autoFocus />
       <label>⛽ Остаток топлива на начало смены, л</label>
-      <input inputMode="decimal" value={shift.startFuel} onChange={e => setShift(prev => ({ ...prev, startFuel: e.target.value }))} placeholder="Например, 85" />
+      <input inputMode="decimal" value={shift.startFuel} onChange={e => onChange(prev => ({ ...prev, startFuel: e.target.value }))} placeholder="Например, 85" />
     </section>
 
     <section className="card">
@@ -175,14 +199,49 @@ function Calculator({ settings, onSettings }) {
 
 function App() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [shift, setShift] = useState(null);
+  const [history, setHistory] = useState([]);
   const [screen, setScreen] = useState('calculator');
 
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
-      if (saved && typeof saved === 'object') setSettings({ city: numberValue(saved.city), highway: numberValue(saved.highway) });
-    } catch {}
+      const savedSettings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+      if (savedSettings && typeof savedSettings === 'object') setSettings({ city: numberValue(savedSettings.city), highway: numberValue(savedSettings.highway) });
+
+      const savedHistory = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+      const normalizedHistory = Array.isArray(savedHistory) ? savedHistory.map(item => ({
+        ...DEFAULT_SHIFT,
+        ...item,
+        id: item.id || String(Date.now() + Math.random()),
+        date: item.date || today(),
+        trips: Array.isArray(item.trips) ? item.trips : [],
+        refuels: Array.isArray(item.refuels) ? item.refuels : []
+      })) : [];
+      setHistory(normalizedHistory);
+
+      const savedShift = JSON.parse(localStorage.getItem(SHIFT_KEY) || 'null');
+      if (savedShift && typeof savedShift === 'object') {
+        setShift({ ...DEFAULT_SHIFT, ...savedShift, id: savedShift.id || String(Date.now()), date: savedShift.date || today(), trips: Array.isArray(savedShift.trips) ? savedShift.trips : [], refuels: Array.isArray(savedShift.refuels) ? savedShift.refuels : [] });
+      } else if (normalizedHistory.length > 0) {
+        setShift(normalizedHistory[0]);
+      } else {
+        setShift(makeShift());
+      }
+    } catch {
+      setShift(makeShift());
+    }
   }, []);
+
+  useEffect(() => {
+    if (!shift) return;
+    localStorage.setItem(SHIFT_KEY, JSON.stringify(shift));
+    setHistory(prev => {
+      const exists = prev.some(item => item.id === shift.id);
+      const next = exists ? prev.map(item => item.id === shift.id ? shift : item) : [shift, ...prev];
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, [shift]);
 
   const saveSettings = next => {
     const safe = { city: numberValue(next.city), highway: numberValue(next.highway) };
@@ -190,9 +249,26 @@ function App() {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(safe));
   };
 
-  return screen === 'settings'
-    ? <Settings settings={settings} onSave={saveSettings} onBack={() => setScreen('calculator')} />
-    : <Calculator settings={settings} onSettings={() => setScreen('settings')} />;
+  const newShift = () => {
+    const next = makeShift();
+    setShift(next);
+    setScreen('calculator');
+  };
+
+  const openShift = id => {
+    const found = history.find(item => item.id === id);
+    if (found) {
+      setShift({ ...found, trips: [...found.trips], refuels: [...found.refuels] });
+      setScreen('calculator');
+    }
+  };
+
+  if (!shift) return <main className="app"><section className="card"><p>Загрузка путёвки…</p></section></main>;
+
+  if (screen === 'settings') return <Settings settings={settings} onSave={saveSettings} onBack={() => setScreen('calculator')} />;
+  if (screen === 'history') return <History history={history} currentId={shift.id} onOpen={openShift} onNew={newShift} onBack={() => setScreen('calculator')} />;
+
+  return <Calculator shift={shift} settings={settings} onChange={setShift} onSettings={() => setScreen('settings')} onHistory={() => setScreen('history')} />;
 }
 
 createRoot(document.getElementById('root')).render(<App />);
