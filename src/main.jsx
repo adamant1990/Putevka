@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
@@ -54,19 +54,19 @@ function History({ history, currentId, onOpen, onNew, onBack }) {
       <div><h1>Мои путёвки</h1><p>Сохранённые смены</p></div>
       <button className="icon" onClick={onBack}>×</button>
     </header>
-
     <section className="card">
       <button className="primary big" onClick={onNew}>＋ Новая смена</button>
       <p className="muted">Каждая смена хранится отдельно. Старую смену можно открыть и продолжить редактировать.</p>
     </section>
-
     <section className="card">
       <div className="row"><h2>Смены</h2><span className="badge">{history.length}</span></div>
       {history.length === 0 ? <p className="muted">Пока нет сохранённых смен.</p> : <div className="list">
         {history.map(shift => {
           const km = shift.trips.reduce((sum, trip) => sum + numberValue(trip.cityKm) + numberValue(trip.highwayKm), 0);
+          const startOdometer = numberValue(shift.odometer);
+          const endOdometer = startOdometer > 0 ? startOdometer + km : 0;
           return <button className={`history-item ${shift.id === currentId ? 'active' : ''}`} key={shift.id} onClick={() => onOpen(shift.id)}>
-            <div><b>{formatDate(shift.date)}</b><span>{shift.trips.length} поездок · {format(km)} км · {shift.refuels.length} заправок</span></div>
+            <div><b>{formatDate(shift.date)}</b><span>{shift.trips.length} поездок · {format(km)} км{endOdometer > 0 ? ` · одометр ${format(endOdometer)} км` : ''} · {shift.refuels.length} заправок</span></div>
             <strong>›</strong>
           </button>;
         })}
@@ -91,13 +91,14 @@ function Calculator({ settings, shift, onChange, onSettings, onHistory }) {
   const totalRefuel = refuels.reduce((sum, item) => sum + numberValue(item.liters), 0);
   const startFuel = numberValue(shift.startFuel);
   const estimatedEndFuel = startFuel + totalRefuel - totalFuel;
+  const remainingFuel = Math.max(0, estimatedEndFuel);
+  const remainingCityKm = numberValue(settings.city) > 0 ? remainingFuel * 100 / numberValue(settings.city) : 0;
+  const startOdometer = numberValue(shift.odometer);
+  const endOdometer = startOdometer > 0 ? startOdometer + totalKm : 0;
 
   const addTrip = () => {
     if (numberValue(newCity) <= 0 && numberValue(newHighway) <= 0) return;
-    onChange(prev => ({
-      ...prev,
-      trips: [...prev.trips, { id: String(Date.now()), cityKm: newCity, highwayKm: newHighway }]
-    }));
+    onChange(prev => ({ ...prev, trips: [...prev.trips, { id: String(Date.now()), cityKm: newCity, highwayKm: newHighway }] }));
     setNewCity('');
     setNewHighway('');
   };
@@ -107,10 +108,7 @@ function Calculator({ settings, shift, onChange, onSettings, onHistory }) {
   const addRefuel = () => {
     const liters = numberValue(newRefuel);
     if (liters <= 0) return;
-    onChange(prev => ({
-      ...prev,
-      refuels: [...prev.refuels, { id: String(Date.now()), liters: newRefuel }]
-    }));
+    onChange(prev => ({ ...prev, refuels: [...prev.refuels, { id: String(Date.now()), liters: newRefuel }] }));
     setNewRefuel('');
   };
 
@@ -135,7 +133,7 @@ function Calculator({ settings, shift, onChange, onSettings, onHistory }) {
       <div className="row"><h2>Данные смены</h2><button className="small" onClick={clear}>Очистить</button></div>
       <label>📅 Дата смены</label>
       <input type="date" value={shift.date} onChange={e => onChange(prev => ({ ...prev, date: e.target.value }))} />
-      <label>🚗 Пробег по одометру, км</label>
+      <label>🚗 Пробег по одометру на начало смены, км</label>
       <input inputMode="decimal" value={shift.odometer} onChange={e => onChange(prev => ({ ...prev, odometer: e.target.value }))} placeholder="Например, 125430" autoFocus />
       <label>⛽ Остаток топлива на начало смены, л</label>
       <input inputMode="decimal" value={shift.startFuel} onChange={e => onChange(prev => ({ ...prev, startFuel: e.target.value }))} placeholder="Например, 85" />
@@ -149,7 +147,6 @@ function Calculator({ settings, shift, onChange, onSettings, onHistory }) {
       <label>🛣️ Трасса, км</label>
       <input inputMode="decimal" value={newHighway} onChange={e => setNewHighway(e.target.value)} placeholder="Например, 120" onKeyDown={e => e.key === 'Enter' && addTrip()} />
       <button className="primary" onClick={addTrip}>＋ Добавить поездку</button>
-
       {trips.length > 0 && <div className="list">
         {trips.map((trip, index) => <div className="list-item" key={trip.id}>
           <div><b>Поездка {index + 1}</b><span>Город: {format(numberValue(trip.cityKm))} км · Трасса: {format(numberValue(trip.highwayKm))} км</span></div>
@@ -176,7 +173,8 @@ function Calculator({ settings, shift, onChange, onSettings, onHistory }) {
       <span>⛽ Расчётный расход</span>
       <strong>{format(totalFuel)} л</strong>
       <em>{format(totalKm)} км общего пробега</em>
-      {shift.odometer !== '' && <em>Одометр: {format(numberValue(shift.odometer))} км</em>}
+      {shift.odometer !== '' && <em>Одометр на начало: {format(startOdometer)} км</em>}
+      {shift.odometer !== '' && <em>Одометр на конец: {format(endOdometer)} км</em>}
     </section>
 
     <section className="card results">
@@ -187,6 +185,8 @@ function Calculator({ settings, shift, onChange, onSettings, onHistory }) {
       <div className="totals"><span>Расход по норме</span><strong>{format(totalFuel)} л</strong></div>
       <div className="totals"><span>Заправлено</span><strong>{format(totalRefuel)} л</strong></div>
       {shift.startFuel !== '' && <div className="totals"><span>Остаток после смены (расчётный)</span><strong>{format(estimatedEndFuel)} л</strong></div>}
+      {shift.startFuel !== '' && <div className="totals"><span>На этом остатке можно проехать по городу</span><strong>{format(remainingCityKm)} км</strong></div>}
+      {shift.odometer !== '' && <div className="totals"><span>Одометр на конец смены</span><strong>{format(endOdometer)} км</strong></div>}
     </section>
 
     <section className="card norms-card">
@@ -264,11 +264,9 @@ function App() {
   };
 
   if (!shift) return <main className="app"><section className="card"><p>Загрузка путёвки…</p></section></main>;
-
-  if (screen === 'settings') return <Settings settings={settings} onSave={saveSettings} onBack={() => setScreen('calculator')} />;
   if (screen === 'history') return <History history={history} currentId={shift.id} onOpen={openShift} onNew={newShift} onBack={() => setScreen('calculator')} />;
-
-  return <Calculator shift={shift} settings={settings} onChange={setShift} onSettings={() => setScreen('settings')} onHistory={() => setScreen('history')} />;
+  if (screen === 'settings') return <Settings settings={settings} onSave={saveSettings} onBack={() => setScreen('calculator')} />;
+  return <Calculator settings={settings} shift={shift} onChange={setShift} onSettings={() => setScreen('settings')} onHistory={() => setScreen('history')} />;
 }
 
 createRoot(document.getElementById('root')).render(<App />);
