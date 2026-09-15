@@ -1,14 +1,13 @@
 export const parseNumber = value => {
   const text = String(value ?? '').trim().replace(',', '.');
-  if (!text) return 0;
-  const match = text.match(/^\d+(?:\.\d+)?$/);
-  return match ? Number(match[0]) : 0;
+  if (!text || !/^\d+(?:\.\d+)?$/.test(text)) return 0;
+  return Number(text);
 };
 
 export const sumValues = value => String(value ?? '')
   .replace(/,/g, '.')
   .split(/\s+/)
-  .map(item => Number(item.replace(/[^0-9.]/g, '')) || 0)
+  .map(item => parseNumber(item))
   .reduce((sum, item) => sum + item, 0);
 
 export const numberValue = value => sumValues(value);
@@ -53,4 +52,10 @@ export const calculateTotals = (shift, vehicle) => {
   };
 };
 
-export const calculateEndOdometer = shift => calculateTotals(shift, {}).endOdometer;
+export const calculateEndOdometer = shift => {
+  const start = numberValue(shift?.odometer);
+  const totalKm = Array.isArray(shift?.trips)
+    ? shift.trips.reduce((sum, trip) => sum + getTripKm(trip), 0)
+    : 0;
+  return start > 0 ? start + totalKm : 0;
+};
