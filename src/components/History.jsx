@@ -28,7 +28,7 @@ export default function History({ history, currentId, onOpen, onNew, onDelete, o
         {history.map(shift => {
           const totals = calculateTotals(shift, settings.vehicles.find(vehicle => vehicle.id === shift.vehicleId));
           return <div className={`history-item ${shift.id === currentId ? 'active' : ''}`} key={shift.id}>
-            <button className="history-item" onClick={() => onOpen(shift.id)} style={{ border: 0, padding: 0, background: 'transparent' }}>
+            <button className="history-main" onClick={() => onOpen(shift.id)}>
               <div>
                 <b>{formatDate(shift.date)} {shift.completed ? '· Завершена' : '· Текущая'}</b>
                 <span>{vehicleName(shift.vehicleId)} · {shift.trips.length} поездок · {format(totals.totalKm)} км{totals.endOdometer > 0 ? ` · одометр ${format(totals.endOdometer)} км` : ''} · {shift.refuels.length} заправок</span>
