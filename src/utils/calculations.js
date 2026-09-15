@@ -4,6 +4,12 @@ export const parseNumber = value => {
   return Number(text);
 };
 
+export const isValidNumberList = value => {
+  const text = String(value ?? '').trim();
+  if (!text) return true;
+  return text.split(/\s+/).every(item => /^\d+(?:[.,]\d+)?$/.test(item));
+};
+
 export const sumValues = value => String(value ?? '')
   .replace(/,/g, '.')
   .split(/\s+/)
