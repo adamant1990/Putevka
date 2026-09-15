@@ -98,10 +98,25 @@ function App() {
     setScreen('calculator');
   };
 
+  const deleteHistoryShift = id => {
+    const target = history.find(item => item.id === id);
+    if (!target || !target.completed) return;
+
+    if (!window.confirm(`Удалить путёвку от ${target.date}?\n\nЭта запись будет удалена из истории без возможности восстановления.`)) return;
+
+    setHistory(prev => prev.filter(item => item.id !== id));
+
+    if (shift.id === id) {
+      const activeShift = history.find(item => !item.completed && item.id !== id);
+      if (activeShift) {
+        setShift(normalizeShift(activeShift));
+      }
+    }
+  };
+
   const finishShift = () => {
     if (shift.completed) return;
 
-    const currentVehicle = settings.vehicles.find(item => item.id === shift.vehicleId) || settings.vehicles[0];
     const current = normalizeShift({
       ...shift,
       completed: true,
@@ -149,6 +164,7 @@ function App() {
       currentId={shift.id}
       onOpen={openHistoryShift}
       onNew={createNewShift}
+      onDelete={deleteHistoryShift}
       onBack={() => setScreen('calculator')}
       settings={settings}
     />;
