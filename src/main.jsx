@@ -42,11 +42,11 @@ function App() {
       ? normalizeShift(savedShift)
       : makeShift({ vehicleId: savedSettings.activeVehicleId });
     const normalizedHistory = Array.isArray(savedHistory)
-      ? savedHistory.map(normalizeShift)
+      ? savedHistory.map(normalizeShift).filter(item => item.completed)
       : [];
 
     setSettings(savedSettings);
-    setShift(normalizedShift);
+    setShift(normalizedShift.completed ? makeShift({ vehicleId: savedSettings.activeVehicleId }) : normalizedShift);
     setHistory(normalizedHistory);
     setLoaded(true);
   }, []);
@@ -59,7 +59,6 @@ function App() {
   useEffect(() => {
     if (!loaded) return;
     writeJson(SHIFT_KEY, shift);
-    setHistory(prev => [shift, ...prev.filter(item => item.id !== shift.id)]);
   }, [shift, loaded]);
 
   useEffect(() => {
@@ -107,10 +106,11 @@ function App() {
     setHistory(prev => prev.filter(item => item.id !== id));
 
     if (shift.id === id) {
-      const activeShift = history.find(item => !item.completed && item.id !== id);
-      if (activeShift) {
-        setShift(normalizeShift(activeShift));
-      }
+      setShift(makeShift({
+        ...getVehicleSnapshot(settings, settings.activeVehicleId),
+        vehicleId: settings.activeVehicleId
+      }));
+      setScreen('calculator');
     }
   };
 
@@ -140,7 +140,7 @@ function App() {
       completed: false
     });
 
-    setHistory(prev => [next, current, ...prev.filter(item => item.id !== current.id && item.id !== next.id)]);
+    setHistory(prev => [current, ...prev.filter(item => item.id !== current.id)]);
     setShift(next);
     setScreen('calculator');
   };
