@@ -4,6 +4,7 @@ import './styles.css';
 import Calculator from './components/Calculator';
 import History from './components/History';
 import Settings from './components/Settings';
+import { calculateEndOdometer, numberValue } from './utils/calculations';
 import {
   DEFAULT_SETTINGS,
   makeShift,
@@ -15,6 +16,16 @@ import {
   SHIFT_KEY,
   HISTORY_KEY
 } from './utils/storage';
+
+const getVehicleSnapshot = (settings, vehicleId) => {
+  const vehicle = settings.vehicles.find(item => item.id === vehicleId) || settings.vehicles[0];
+  return vehicle ? {
+    vehicleId: vehicle.id,
+    vehicleName: vehicle.name,
+    cityNorm: numberValue(vehicle.city),
+    highwayNorm: numberValue(vehicle.highway)
+  } : {};
+};
 
 function App() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -48,6 +59,7 @@ function App() {
   useEffect(() => {
     if (!loaded) return;
     writeJson(SHIFT_KEY, shift);
+    setHistory(prev => [shift, ...prev.filter(item => item.id !== shift.id)]);
   }, [shift, loaded]);
 
   useEffect(() => {
@@ -55,32 +67,27 @@ function App() {
     writeJson(HISTORY_KEY, history);
   }, [history, loaded]);
 
-  const syncCurrentToHistory = nextShift => {
-    setHistory(prev => [nextShift, ...prev.filter(item => item.id !== nextShift.id)]);
-  };
-
   const handleShiftChange = updater => {
-    setShift(prev => {
-      const next = normalizeShift(typeof updater === 'function' ? updater(prev) : updater);
-      syncCurrentToHistory(next);
-      return next;
-    });
+    setShift(prev => normalizeShift(typeof updater === 'function' ? updater(prev) : updater));
   };
 
   const saveSettings = nextSettings => {
     setSettings(nextSettings);
 
-    if (!shift.trips.length && !shift.refuels.length && !shift.odometer && !shift.startFuel) {
-      const nextShift = { ...shift, vehicleId: nextSettings.activeVehicleId };
-      setShift(nextShift);
-      syncCurrentToHistory(nextShift);
+    if (!shift.completed && !shift.trips.length && !shift.refuels.length && !shift.odometer && !shift.startFuel) {
+      setShift(prev => ({
+        ...prev,
+        vehicleId: nextSettings.activeVehicleId
+      }));
     }
   };
 
   const createNewShift = () => {
-    const next = makeShift({ vehicleId: settings.activeVehicleId });
+    const next = makeShift({
+      ...getVehicleSnapshot(settings, settings.activeVehicleId),
+      vehicleId: settings.activeVehicleId
+    });
     setShift(next);
-    syncCurrentToHistory(next);
     setScreen('calculator');
   };
 
@@ -94,20 +101,24 @@ function App() {
   const finishShift = () => {
     if (shift.completed) return;
 
-    const current = normalizeShift({ ...shift, completed: true });
+    const currentVehicle = settings.vehicles.find(item => item.id === shift.vehicleId) || settings.vehicles[0];
+    const current = normalizeShift({
+      ...shift,
+      completed: true,
+      ...getVehicleSnapshot(settings, shift.vehicleId)
+    });
+    const endOdometer = calculateEndOdometer(current);
+
     if (!window.confirm(
       `Завершить смену от ${current.date}?\n\n` +
-      'Смена будет сохранена в истории, а новая путёвка будет полностью очищена.'
+      `Пробег за смену: ${numberValue(current.odometer) > 0 ? endOdometer - numberValue(current.odometer) : 0} км.\n` +
+      'Смена будет сохранена в истории, а новая путёвка будет создана автоматически.'
     )) return;
 
-    const startOdometer = Number(current.odometer) || 0;
-    const totalKm = current.trips.reduce(
-      (sum, trip) => sum + (Number(trip.cityKm) || 0) + (Number(trip.highwayKm) || 0),
-      0
-    );
     const next = makeShift({
+      ...getVehicleSnapshot(settings, current.vehicleId),
       vehicleId: current.vehicleId,
-      odometer: startOdometer > 0 ? startOdometer + totalKm : '',
+      odometer: endOdometer > 0 ? endOdometer : '',
       startFuel: '',
       trips: [],
       refuels: [],
